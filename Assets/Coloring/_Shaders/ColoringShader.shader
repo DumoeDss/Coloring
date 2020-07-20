@@ -52,12 +52,7 @@
                 int maskIndex = (int)(step(bias, mask.r)
                     + step(bias, mask.g) * 2
                     + step(bias, mask.b) * 4);
-                fixed4x4 mixingMatrix = _MixingMatrices[maskIndex];//
-          /*     fixed xr = mixingMatrix[0].x * src.r + mixingMatrix[0].y * src.g + mixingMatrix[0].z * src.b + mixingMatrix[0].w;
-               fixed yg = mixingMatrix[1].x * src.r + mixingMatrix[1].y * src.g + mixingMatrix[1].z * src.b + mixingMatrix[1].w;
-               fixed zb = mixingMatrix[2].x * src.r + mixingMatrix[2].y * src.g + mixingMatrix[2].z * src.b + mixingMatrix[2].w;
-
-               fixed3 dst = fixed3(xr, yg, zb);*/
+                fixed4x4 mixingMatrix = _MixingMatrices[maskIndex];
 
                 fixed3 dst = mul((fixed3x3)mixingMatrix, src);
                 dst.r += mixingMatrix[0].w;

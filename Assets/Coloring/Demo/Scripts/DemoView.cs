@@ -17,10 +17,9 @@ public class DemoView : MonoBehaviour
     {
         for (int i = 0; i < toggles.Count; i++)
         {
-            print($"toggles {i} is {toggles[i].isOn}");
             if (toggles[i].isOn)
             {
-                coloringTexture.SetColorIndex(i);
+                coloringTexture.SetColorMask(i);
                 return;
             }
         }

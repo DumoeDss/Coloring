@@ -10,8 +10,14 @@ public class ColoringTexture : MonoBehaviour
     public Texture2D sourceTex;
     public Material targetMat;
     public List<Color> sourceColors;
-    RenderTexture renderTexture;
 
+    int mask;
+    Color targetColor;
+    List<int> paramPresetIndexList;
+    List<Vector3> paramPresetList;
+    List<Matrix4x4> _MixingMatrices;
+
+    RenderTexture renderTexture;
     RenderTexture _MainTexture
     {
         get
@@ -26,7 +32,28 @@ public class ColoringTexture : MonoBehaviour
         }
     }
 
+    private void Awake()
+    {
+        paramPresetIndexList = new List<int>();
+        for (int i = 0; i < sourceColors.Count; i++)
+        {
+            paramPresetIndexList.Add(-1);
+        }
 
+        paramPresetList = new List<Vector3>();
+        paramPresetList.Add(new Vector3(2, -0.5f, -0.5f));
+        paramPresetList.Add(new Vector3(-0.5f, 2, -0.5f));
+        paramPresetList.Add(new Vector3(-0.5f, -0.5f, 2));
+
+        ApplyMask();
+        InitMatrices();
+        ApplyMainTexture();
+    }
+
+    /// <summary>
+    /// 为贴图染色
+    /// </summary>
+    /// <param name="source"></param>
     public void Coloring(Texture source)
     {
         if (renderTexture == null)
@@ -37,49 +64,57 @@ public class ColoringTexture : MonoBehaviour
         Graphics.Blit(source, renderTexture, coloringMat);
     }
 
-    int mask;
-    Color targetColor;
-
-    public void SetColorIndex(int index )
+    /// <summary>
+    /// 设置mask
+    /// </summary>
+    /// <param name="index"></param>
+    public void SetColorMask(int index )
     {
         mask = index;
     }
 
+    /// <summary>
+    /// 设置目标颜色
+    /// </summary>
+    /// <param name="color"></param>
     public void SetTargetColor(Color color)
     {
         targetColor = color;
-        //print($"Current Color is {sourceColors[mask]}  targetColor is  {targetColor}");
         ChangeColor(sourceColors[mask], targetColor, mask);
 
     }
 
-    private void Awake()
-    {
-        ApplyMask();
-        InitMatrices();
-        ApplyMainTexture();
-    }
-
-    List<Matrix4x4> _MixingMatrices;
+    /// <summary>
+    /// 材质设置贴图
+    /// </summary>
     public void ApplyMainTexture()
     {
         targetMat.SetTexture("_MainTex", _MainTexture);
     }
 
+    /// <summary>
+    /// 材质设置Mask贴图
+    /// </summary>
     public void ApplyMask()
     {
         coloringMat.SetTexture("_RecolorMask", _RecolorMask);
     }
 
+    /// <summary>
+    /// 材质设置参数矩阵
+    /// </summary>
     public void ApplyMatrix()
     {
         coloringMat.SetMatrixArray("_MixingMatrices", _MixingMatrices);
     }
 
+    /// <summary>
+    /// 初始化参数矩阵
+    /// </summary>
     void InitMatrices()
     {
         _MixingMatrices = new List<Matrix4x4>();
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < sourceColors.Count; i++)
         {
             Vector4 r = new Vector4(1, 0, 0, 0);
             Vector4 g = new Vector4(0, 1, 0, 0);
@@ -90,18 +125,30 @@ public class ColoringTexture : MonoBehaviour
         }
     }
 
-    public void ChangeColor(Color SourceColor,Color TargetColor,int mask)
+    /// <summary>
+    /// 设置参数矩阵，改变颜色
+    /// </summary>
+    /// <param name="SourceColor">源颜色</param>
+    /// <param name="TargetColor">目标颜色</param>
+    /// <param name="index">参数矩阵索引</param>
+    public void ChangeColor(Color SourceColor,Color TargetColor,int index)
     {
         if (_MixingMatrices != null)
         {
             Matrix4x4 channelParams = CalcMixChannelParams(SourceColor, TargetColor);
-            _MixingMatrices[mask] = channelParams;
+            _MixingMatrices[index] = channelParams;
             ApplyMatrix();
             Coloring(sourceTex);
         }
    
     }
 
+    /// <summary>
+    /// 计算参数矩阵
+    /// </summary>
+    /// <param name="sourceColor">源颜色</param>
+    /// <param name="targetColor">目标颜色</param>
+    /// <returns>参数矩阵</returns>
     Matrix4x4 CalcMixChannelParams(Color sourceColor, Color targetColor)
     {
         Vector4 ret1 = CalcMixChannelParamEx(sourceColor, targetColor[0], 0);
@@ -110,31 +157,33 @@ public class ColoringTexture : MonoBehaviour
 
         Vector4 ret3 = CalcMixChannelParamEx(sourceColor, targetColor[2], 2);
 
-
-
         Matrix4x4 ret = new Matrix4x4();
-        //new Matrix4x4(
-        //      ret1,
-        //      ret2,
-        //      ret3,
-        //      Vector4.zero
-        //        );
 
         ret.SetRow(0, ret1);
         ret.SetRow(1, ret2);
         ret.SetRow(2, ret3);
 
-        float R = ret1.x * sourceColor.r + ret1.y * sourceColor.g + ret1.z * sourceColor.b + ret1.w;
-        float G = ret2.x * sourceColor.r + ret2.y * sourceColor.g + ret2.z * sourceColor.b + ret2.w;
-        float B = ret3.x * sourceColor.r + ret3.y * sourceColor.g + ret3.z * sourceColor.b + ret3.w;
-        Color calcColor = new Color(R, G, B);
+        #region 用于测试知乎提供的算法
+        //ret.SetColumn(0, ret1);
+        //ret.SetColumn(1, ret2);
+        //ret.SetColumn(2, ret3);
+        #endregion      
 
-        Debug.Log(
-            //ret+"\n"+ 
-            $"sourceColor: {sourceColor}  targetColor: { targetColor}   calcColor: {calcColor}");
+
+        #region Debug
+        //float R = ret1.x * sourceColor.r + ret1.y * sourceColor.g + ret1.z * sourceColor.b + ret1.w;
+        //float G = ret2.x * sourceColor.r + ret2.y * sourceColor.g + ret2.z * sourceColor.b + ret2.w;
+        //float B = ret3.x * sourceColor.r + ret3.y * sourceColor.g + ret3.z * sourceColor.b + ret3.w;
+        //Color calcColor = new Color(R, G, B);
+        //Debug.Log(
+        //    ret + "\n" +
+        //    $"sourceColor: {sourceColor}  targetColor: { targetColor}   calcColor: {calcColor}");
+        #endregion
+
         return ret;
     }
 
+    #region 知乎提供的通道参数计算算法，源色为深色的话不起作用
     Vector4 CalcMixChannelParam(Color sourceColor, float targetChannelValue, int targetIndex)
     {
         Vector4 ret = Vector4.zero;
@@ -180,37 +229,64 @@ public class ColoringTexture : MonoBehaviour
         }
         return ret;
     }
+    #endregion
 
-    bool isFloatZero(float value)
-    {
-        return Mathf.Abs(value) < float.MinValue;
-    }
-
+    /// <summary>
+    /// 计算目标通道的参数
+    /// 原本每个通道需要计算r,g,b,const四个值
+    /// 但是理论上，通道调色结果要保证 r+g+b=1，不然颜色“不正”
+    /// 那么直接取r,g,b为-0.5,-0.5，2这三个值，剩余的值靠const补齐。
+    /// 这样问题就简化为找出-0.5,-0.5，2这三个值与r,g,b通道对应关系。
+    /// 即求三种对应关系下 const = targte - r*R + g*G + b*B 的最小值
+    /// </summary>
+    /// <param name="sourceColor">源颜色</param>
+    /// <param name="targetChannelColorValue">该通道的目标值</param>
+    /// <param name="channel">通道索引(r,g,b)</param>
+    /// <returns>目标通道的参数</returns>
     Vector4 CalcMixChannelParamEx(Color sourceColor, float targetChannelColorValue, int channel)
     {
-        //sourceColor *= 255;
-        //targetChannelColorValue *= 255;
         Vector4 ret = Vector4.zero;
         Vector3 colorVec = new Vector3(sourceColor.r, sourceColor.g, sourceColor.b);
 
-        List<Vector3> paramPresetList = new List<Vector3>();
-        paramPresetList.Add(new Vector3(2, -0.5f, -0.5f));
-        paramPresetList.Add(new Vector3(-0.5f, 2, -0.5f));
-        paramPresetList.Add(new Vector3(-0.5f, -0.5f, 2));
+        #region 如果每次都计算的话，当参数处于临界值跳动时，会发生跳色情况
+        //float dis0 = targetChannelColorValue - Vector3.Dot(colorVec, paramPresetList[0]);
+        //float dis1 = targetChannelColorValue - Vector3.Dot(colorVec, paramPresetList[1]);
+        //float dis2 = targetChannelColorValue - Vector3.Dot(colorVec, paramPresetList[2]);
 
-        float dis0 = targetChannelColorValue- Vector3.Dot(colorVec, paramPresetList[0]);
-        float dis1 = targetChannelColorValue -Vector3.Dot(colorVec, paramPresetList[1]);
-        float dis2 = targetChannelColorValue -Vector3.Dot(colorVec, paramPresetList[2]);
+        //List<float> disArray = new List<float>() { dis0, dis1, dis2 };
+        //List<float> AbsDisArray = new List<float>() { Mathf.Abs(dis0), Mathf.Abs(dis1), Mathf.Abs(dis2) };
 
-        List<float> disArray = new List<float>() { dis0, dis1, dis2 };
-        List<float> AbsDisArray = new List<float>() { Mathf.Abs(dis0), Mathf.Abs(dis1), Mathf.Abs(dis2) };
+        //int index = AbsDisArray.IndexOf(AbsDisArray.Min());
 
-        int index = AbsDisArray.IndexOf(AbsDisArray.Min());
-        ret.x = paramPresetList[index].x;
-        ret.y = paramPresetList[index].y;
-        ret.z = paramPresetList[index].z;
+        //ret.x = paramPresetList[index].x;
+        //ret.y = paramPresetList[index].y;
+        //ret.z = paramPresetList[index].z;
+        //ret.w = disArray[index];
+        #endregion
 
-        ret.w = disArray[index];/// 255.0f;
+        #region 改为每个Mask的颜色只计算一次rgb通道参数，然后修改const值
+        float constValue = 0;
+        if (paramPresetIndexList[channel] < 0)
+        {
+            float dis0 = targetChannelColorValue - Vector3.Dot(colorVec, paramPresetList[0]);
+            float dis1 = targetChannelColorValue - Vector3.Dot(colorVec, paramPresetList[1]);
+            float dis2 = targetChannelColorValue - Vector3.Dot(colorVec, paramPresetList[2]);
+
+            List<float> disArray = new List<float>() { dis0, dis1, dis2 };
+            List<float> AbsDisArray = new List<float>() { Mathf.Abs(dis0), Mathf.Abs(dis1), Mathf.Abs(dis2) };
+            paramPresetIndexList[channel] = AbsDisArray.IndexOf(AbsDisArray.Min());
+            constValue = disArray[paramPresetIndexList[channel]];
+        }
+        else
+        {
+            constValue = targetChannelColorValue - Vector3.Dot(colorVec, paramPresetList[paramPresetIndexList[channel]]);
+        }
+
+        ret.x = paramPresetList[paramPresetIndexList[channel]].x;
+        ret.y = paramPresetList[paramPresetIndexList[channel]].y;
+        ret.z = paramPresetList[paramPresetIndexList[channel]].z;
+        ret.w = constValue;
+        #endregion
 
         return ret;
     }
